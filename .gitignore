@@ -1,0 +1,34 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# === 私有数据（严禁上传） ===
+attachments/
+output/
+config/models/*.json
+
+# === 脚本输出日志 ===
+scripts/*.txt
+
+# === 前端 ===
+web/frontend/node_modules/
+web/frontend/dist/
+
+# === IDE / OS ===
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.sw?
+Thumbs.db
+
+# === pytest ===
+.pytest_cache/
+
+# === Agent 工作区 ===
+.agent/
+.agents/
