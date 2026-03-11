@@ -35,6 +35,7 @@
 CPE-Forge/
 ├── pipeline/                # 核心管线代码
 │   ├── api.py               #   统一 API 入口（清洗+分析+对话）
+│   ├── eml_extractor.py     #   EML 邮件解析、附件提取、年份校准
 │   ├── auto_discovery.py    #   Excel 智能识别与过滤
 │   ├── noise_reduction.py   #   TF-IDF 去重与时间线重构
 │   ├── llm_client.py        #   LLM 统一调用层（LiteLLM）
@@ -58,9 +59,10 @@ CPE-Forge/
 ├── prompts/                 # LLM System Prompt 模板
 ├── config/models/           # 模型配置（运行时自动生成，含 API Key）
 ├── tests/                   # 单元测试（164+）
-├── scripts/                 # 调试与运行脚本
-├── attachments/             # [需用户提供] 员工周报 Excel 数据
-├── output/                  # [运行时生成] 清洗结果与分析缓存
+├── scripts/                 # 清洗管线与调试脚本
+├── emails/                  # [需用户提供] 周报邮件 EML 文件（推荐）
+├── attachments/             # [自动生成] 从 EML 提取的 Excel 附件
+├── output/                  # [自动生成] 清洗结果与分析缓存
 ├── requirements.txt         # Python 依赖
 ├── start.bat                # Windows 一键启动脚本
 └── README.md
@@ -99,10 +101,13 @@ cd web\frontend
 npm install
 cd ..\..
 
-# 5. 启动后端（端口 5000）
+# 5. 数据清洗（从 EML 提取 + 年份校准 + 去重）
+python scripts/run_pipeline.py --input attachments --output output --report --emails emails
+
+# 6. 启动后端（端口 5000）
 python -m web.app
 
-# 6. 启动前端（另开终端，端口 5173）
+# 7. 启动前端（另开终端，端口 5173）
 cd web\frontend
 npm run dev
 ```
@@ -113,15 +118,27 @@ npm run dev
 
 ## 📦 数据准备
 
-### 1. 放入周报数据
+### 方式一：EML 邮件（推荐）
 
-将员工周报 Excel 文件按以下结构放入 `attachments/` 目录：
+将周报邮件的 `.eml` 文件放入 `emails/` 目录即可，启动时自动提取附件并校准日期：
+
+```
+emails/
+├── 工作周报_张三(2025年1月6日~1月11日).eml
+├── 工作周报_张三(2025年1月13日~1月17日).eml
+└── ...
+```
+
+> 优势：邮件的 `Date` 头可自动校准附件文件名中的年份错误（如员工2026年的周报文件名误写为2025年）
+
+### 方式二：直接放入 Excel
+
+将员工周报 Excel 文件按发件人邮箱分目录放入 `attachments/`：
 
 ```
 attachments/
 ├── zhangsan@company.com/
 │   ├── 工作周报_张三(2025年1月6日~1月11日).xlsx
-│   ├── 工作周报_张三(2025年1月13日~1月17日).xlsx
 │   └── ...
 ├── lisi@company.com/
 │   └── ...
