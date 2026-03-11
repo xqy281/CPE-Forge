@@ -636,3 +636,36 @@ export default {
 - **给其他 Agent 的交接/下一步**：
   - 英雄榜历史列表现在可以直接看到每份报告覆盖的周报时间范围，无需点进去查看
 ---
+
+---
+### 🕒 2026-03-11 17:45 | 🖥️ 窗口/任务: 项目 Git 初始化与 GitHub 部署
+- **已完成事项**：
+  - 数据脱敏：清除 `deepseek_deepseek-reasoner.json` 中的明文 API Key
+  - 旧 Vanilla JS 前端代码永久删除（`web/static/` + `web/templates/`）
+  - `web/app.py` 重写：移除旧模板路由，新增 CORS 支持 + 模型配置自动初始化
+  - 创建根目录 `.gitignore`：排除 attachments/、output/、config/models/*.json、__pycache__/、node_modules/ 等敏感/构建目录
+  - `requirements.txt` 补充 flask + flask-cors 依赖
+  - 编写 `README.md`（项目简介、技术栈、目录结构、快速开始、API 文档）
+  - 编写 `start.bat` 一键启动脚本（自动创建虚拟环境、安装依赖、初始化配置、启动前后端）
+  - 新增 `tests/test_empty_project.py` 空项目管线验证测试（7 个用例）
+  - 全部 172 个测试通过（165 原有 + 7 新增）
+  - Git 初始化并推送到 `git@github.com:xqy281/CPE-Forge.git`（75 个文件，16197 行）
+- **涉及文件**：
+  - `.gitignore` [新增]
+  - `README.md` [新增]
+  - `start.bat` [新增]
+  - `tests/test_empty_project.py` [新增]
+  - `web/app.py` [重写]
+  - `requirements.txt` [修改]
+  - `config/models/deepseek_deepseek-reasoner.json` [脱敏]
+  - `web/static/` [删除]
+  - `web/templates/` [删除]
+- **关键决策/踩坑记录**：
+  - `config/models/*.json` 整体纳入 .gitignore，新环境首次运行 `init_default_configs()` 自动生成空 Key 的默认预设
+  - litellm 冷启动导入极慢（4+ 分钟），空项目管线验证采用 pytest 框架运行以复用已有 import 缓存
+  - flask-cors 是新增的运行时依赖，用于开发模式下 Vite :5173 → Flask :5000 跨域访问
+- **给其他 Agent 的交接/下一步**：
+  - 新电脑克隆后运行 `start.bat` 即可一键启动
+  - 需要将周报 Excel 数据拷贝到 `attachments/` 目录，并在模型配置页面设置 API Key
+  - 如需在 output/ 下使用已有的分析缓存，需手动拷贝 output/ 目录
+---
