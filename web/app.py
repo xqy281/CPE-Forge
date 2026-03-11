@@ -19,6 +19,7 @@ from pipeline.llm_config import init_default_configs
 BASE_DIR = Path(__file__).resolve().parent.parent
 ATTACHMENTS_DIR = BASE_DIR / "attachments"
 OUTPUT_DIR = BASE_DIR / "output"
+EMAILS_DIR = BASE_DIR / "emails"
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -48,6 +49,7 @@ def create_app() -> Flask:
     # 注入路径配置供 Blueprint 使用
     app.config["ATTACHMENTS_DIR"] = ATTACHMENTS_DIR
     app.config["OUTPUT_DIR"] = OUTPUT_DIR
+    app.config["EMAILS_DIR"] = EMAILS_DIR
 
     # 首次启动时初始化默认模型配置（幂等，不覆盖已有配置）
     init_default_configs()

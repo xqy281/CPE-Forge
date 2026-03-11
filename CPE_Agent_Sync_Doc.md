@@ -669,3 +669,47 @@ export default {
   - 需要将周报 Excel 数据拷贝到 `attachments/` 目录，并在模型配置页面设置 API Key
   - 如需在 output/ 下使用已有的分析缓存，需手动拷贝 output/ 目录
 ---
+
+---
+### 🕒 2026-03-11 18:55 | 🖥️ 窗口/任务: EML 邮件日期校准管线
+- **已完成事项**：
+  - 核查 xiaoqianyun 年份错误：6个「软件部」文件（2026年1~3月）文件名误写为 `2025年`
+  - 新建 `pipeline/eml_extractor.py`：从 EML 构建「附件文件名→邮件发送日期」映射表
+  - 集成到 `auto_discovery.py`：日期解析后自动校准年份，含跨年保护逻辑
+  - 修改 `scripts/run_pipeline.py`：新增 `--emails` 参数，新增「阶段0: EML 校准映射」
+  - 修改 `pipeline/api.py`：`CPEPipelineAPI.__init__()` 新增 `emails_dir` 参数
+  - 修复跨年保护 Bug：12月文件+1月邮件不校准（如 `12月29日-01月09日` 在1月9日提交）
+  - 662 个唯一附件映射构建，xiaoqianyun 6个错误年份全部校准为 2026
+- **涉及文件**：
+  - `pipeline/eml_extractor.py` [新建：EML 解析 + 校准映射 + 年份校准函数]
+  - `pipeline/auto_discovery.py` [修改：集成 calibration_map 参数]
+  - `pipeline/api.py` [修改：集成 emails_dir 参数]
+  - `scripts/run_pipeline.py` [修改：新增 --emails 参数 + 阶段0]
+- **关键决策/踩坑记录**：
+  - 不使用 From 字段做员工识别（转发邮件的 From 是 dongshufeng 而非原始发送者）
+  - 跨年保护：文件名月份 ≥11 且邮件发送在次年 1~2 月时跳过校准
+  - 同一附件出现在多封邮件中时保留最早的发送日期（原始邮件通常最早）
+- **给其他 Agent 的交接/下一步**：
+  - 跑批命令更新：`python scripts/run_pipeline.py --input attachments --output output --report --emails emails`
+  - Web API 初始化更新：`CPEPipelineAPI(attachments_dir, output_dir, emails_dir="emails")`
+  - `web/app.py` 中已同步传入 emails_dir ✅
+---
+
+---
+### 🕒 2026-03-11 19:04 | 🖥️ 窗口/任务: 空项目启动流程集成（只需 emails/ 即可一键启动）
+- **已完成事项**：
+  - `start.bat` 新增步骤5「数据准备」：自动检测 emails/ → 提取附件 → 运行清洗管线
+  - `web/app.py` 新增 `EMAILS_DIR` 路径配置并注入 Flask config
+  - `web/api_routes.py` 的 `get_pipeline()` 传入 `emails_dir` 启用运行时年份校准
+  - 智能跳过逻辑：attachments 已有数据则跳过提取，cleaning_report.json 已存在则跳过清洗
+- **涉及文件**：
+  - `start.bat` [修改：6步流程，新增步骤5数据准备]
+  - `web/app.py` [修改：新增 EMAILS_DIR]
+  - `web/api_routes.py` [修改：get_pipeline 传入 emails_dir]
+- **关键决策/踩坑记录**：
+  - 空项目启动流程：emails/ → extract.py 提取 → run_pipeline.py 清洗 → Flask 启动
+  - 每个步骤都有幂等检测（已存在则跳过），多次重启不会重复执行
+- **给其他 Agent 的交接/下一步**：
+  - 从空项目部署只需：代码 + emails/ 目录 + `start.bat` 一键启动
+  - 如需强制重跑清洗：删除 `output/cleaning_report.json` 后重启
+---

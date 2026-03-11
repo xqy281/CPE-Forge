@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from pipeline.models import SheetRecord, AnalysisResult
 from pipeline.auto_discovery import scan_directory
+from pipeline.eml_extractor import build_date_calibration_map
 from pipeline.noise_reduction import flatten_and_deduplicate, reconstruct_timeline
 from pipeline.token_estimator import estimate_markdown_tokens, TokenEstimate
 from pipeline.llm_client import CPELLMClient
@@ -15,12 +16,17 @@ from pipeline.faq_chat import FAQChatEngine
 logger = logging.getLogger(__name__)
 
 class CPEPipelineAPI:
-    def __init__(self, attachments_dir: str | Path, output_dir: str | Path):
+    def __init__(self, attachments_dir: str | Path, output_dir: str | Path, emails_dir: str | Path | None = None):
         self.attachments_dir = Path(attachments_dir)
         self.output_dir = Path(output_dir)
+        self.emails_dir = Path(emails_dir) if emails_dir else None
         self.cache_dir = self.output_dir / "cache"
         if not self.cache_dir.exists():
             self.cache_dir.mkdir(parents=True)
+        # 构建 EML 邮件日期校准映射表（仅在提供了 emails_dir 时）
+        self._calibration_map = None
+        if self.emails_dir and self.emails_dir.exists():
+            self._calibration_map = build_date_calibration_map(self.emails_dir)
 
     def get_employee_list(self) -> list[dict[str, str]]:
         """获取附件目录下所有可用的人员列表"""
@@ -75,7 +81,11 @@ class CPEPipelineAPI:
             return
             
         # 1. auto_discovery 模块寻找并过滤
-        valid_files, _, _ = scan_directory(self.attachments_dir, specific_email=email)
+        valid_files, _, _ = scan_directory(
+            self.attachments_dir,
+            specific_email=email,
+            calibration_map=self._calibration_map,
+        )
         if not valid_files:
             return
             

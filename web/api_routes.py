@@ -22,9 +22,14 @@ api_bp = Blueprint("api", __name__)
 
 def get_pipeline() -> CPEPipelineAPI:
     """延迟实例化管线 API（需要 Flask 应用上下文）"""
+    emails_dir = current_app.config.get("EMAILS_DIR")
+    # 仅在 emails 目录存在时传入（不存在则不校准）
+    if emails_dir and not emails_dir.exists():
+        emails_dir = None
     return CPEPipelineAPI(
         attachments_dir=current_app.config["ATTACHMENTS_DIR"],
         output_dir=current_app.config["OUTPUT_DIR"],
+        emails_dir=emails_dir,
     )
 
 

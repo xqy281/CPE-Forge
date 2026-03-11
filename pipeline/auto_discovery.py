@@ -10,8 +10,11 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from pipeline.eml_extractor import calibrate_year
 
 import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
@@ -114,7 +117,8 @@ def _parse_sheet_records(
     employee_name: str,
     employee_email: str,
     source_file: Path,
-    file_modified_time,
+    file_modified_time: str,
+    calibration_map: dict[str, datetime] | None = None,
 ) -> Optional[SheetRecord]:
     """
     解析单个 Sheet 为 SheetRecord。
@@ -220,6 +224,19 @@ def _parse_sheet_records(
     if date_range is None and date_str_from_content:
         date_range = parse_date_from_text(date_str_from_content)
 
+    # 年份校准：用邮件发送日期修正文件名中的错误年份
+    if date_range is not None and calibration_map:
+        start_date, end_date = date_range
+        corrected_year = calibrate_year(
+            start_date.year, source_file.name, calibration_map,
+            parsed_month=start_date.month,
+        )
+        if corrected_year != start_date.year:
+            year_delta = corrected_year - start_date.year
+            start_date = start_date.replace(year=start_date.year + year_delta)
+            end_date = end_date.replace(year=end_date.year + year_delta)
+            date_range = (start_date, end_date)
+
     return SheetRecord(
         employee_name=employee_name,
         employee_email=employee_email,
@@ -238,6 +255,7 @@ def scan_directory(
     attachments_dir: Path,
     threshold: float = DEFAULT_THRESHOLD,
     specific_email: str = None,
+    calibration_map: dict[str, datetime] | None = None,
 ) -> tuple[list[FileResult], list[FileResult], list[FileResult]]:
     """
     扫描附件目录，识别有效周报文件。
@@ -249,6 +267,7 @@ def scan_directory(
         attachments_dir: 附件根目录（包含员工子目录）
         threshold: 匹配阈值
         specific_email: 可选，限定只扫描某一个员工的文件夹名称
+        calibration_map: 可选，EML 邮件日期校准映射表
 
     Returns:
         (valid_files, rejected_files, error_files)
@@ -309,6 +328,7 @@ def scan_directory(
                         record = _parse_sheet_records(
                             ws, employee_name, employee_email,
                             filepath, file_mtime,
+                            calibration_map=calibration_map,
                         )
                         if record is not None:
                             valid_sheets.append(record)

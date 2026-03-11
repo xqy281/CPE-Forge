@@ -7,6 +7,7 @@ venv/
 
 # === 私有数据（严禁上传） ===
 attachments/
+emails/
 output/
 config/models/*.json
 

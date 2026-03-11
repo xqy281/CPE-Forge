@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.auto_discovery import scan_directory
+from pipeline.eml_extractor import build_date_calibration_map, extract_attachments_from_eml_dir
 from pipeline.models import CleaningReport, FileStatus
 from pipeline.noise_reduction import flatten_and_deduplicate
 
@@ -41,6 +42,7 @@ def run_pipeline(
     output_dir: Path | None = None,
     report: bool = True,
     similarity_threshold: float = 0.98,
+    emails_dir: Path | None = None,
 ) -> CleaningReport:
     """
     执行完整的数据清洗管线。
@@ -50,12 +52,37 @@ def run_pipeline(
         output_dir: 输出目录（存放清洗结果）
         report: 是否输出统计报告
         similarity_threshold: 相似度阈值
+        emails_dir: 可选，EML 邮件目录（用于年份校准）
 
     Returns:
         清洗统计报告
     """
     logger = logging.getLogger("pipeline")
     cleaning_report = CleaningReport()
+
+    # ============================================================
+    # 阶段 0: EML 邮件日期校准映射表
+    # ============================================================
+    calibration_map = None
+    if emails_dir and emails_dir.exists():
+        logger.info("=" * 60)
+        logger.info("阶段 0: EML 邮件处理")
+        logger.info("=" * 60)
+
+        # 检查 attachments 目录是否为空（无员工子目录），如果是则自动从 EML 提取附件
+        has_employee_dirs = any(
+            d.is_dir() and "@" in d.name
+            for d in input_dir.iterdir()
+        ) if input_dir.exists() else False
+
+        if not has_employee_dirs:
+            logger.info("附件目录为空，从 EML 邮件提取附件...")
+            calibration_map = extract_attachments_from_eml_dir(emails_dir, input_dir)
+        else:
+            logger.info("附件目录已有数据，仅构建校准映射表")
+            calibration_map = build_date_calibration_map(emails_dir)
+
+        logger.info("校准映射表: %d 个附件", len(calibration_map))
 
     # ============================================================
     # 阶段 1: 智能识别与过滤
@@ -65,7 +92,9 @@ def run_pipeline(
     logger.info("=" * 60)
 
     t0 = time.perf_counter()
-    valid_files, rejected_files, error_files = scan_directory(input_dir)
+    valid_files, rejected_files, error_files = scan_directory(
+        input_dir, calibration_map=calibration_map
+    )
     t1 = time.perf_counter()
 
     # 统计
@@ -280,6 +309,12 @@ def main():
         help="相似度去重阈值 (默认: 0.98)",
     )
     parser.add_argument(
+        "--emails", "-e",
+        type=Path,
+        default=None,
+        help="EML 邮件目录，用于年份校准 (默认: 不校准)",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         default=False,
@@ -299,6 +334,7 @@ def main():
         output_dir=args.output,
         report=args.report,
         similarity_threshold=args.threshold,
+        emails_dir=args.emails,
     )
 
     # 最终汇总
