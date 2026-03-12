@@ -69,6 +69,23 @@ class TestPromptLoading:
         assert "proportion" in content
         assert "depth" in content
 
+    def test_prompt_contains_anti_pattern_framework(self):
+        """改进后的 prompt 应包含反模式检测框架关键段落"""
+        prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "profile_system.md"
+        content = prompt_path.read_text(encoding="utf-8")
+        # 自我美化偏差警告
+        assert "自我美化偏差" in content, "缺少自我美化偏差警告段落"
+        # 反模式信号词典
+        assert "反模式信号词典" in content, "缺少反模式信号词典"
+        assert "阻塞式补丁" in content, "缺少阻塞式补丁反模式"
+        assert "关注点耦合" in content, "缺少关注点耦合反模式"
+        assert "延时调参法" in content, "缺少延时调参法反模式"
+        # 正负向证据标记
+        assert "[+]" in content, "缺少正向证据标记 [+]"
+        assert "[-]" in content, "缺少负向证据标记 [-]"
+        # 严谨维度 Lv4 锚定
+        assert "重构" in content and "解耦" in content, "严谨 Lv4 应要求重构/解耦证据"
+
 
 # ============================================================================
 # 格式校验测试

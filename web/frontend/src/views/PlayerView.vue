@@ -16,6 +16,9 @@ import {
   ArrowLeft,
   TrendingUp,
   AlertCircle,
+  RefreshCw,
+  Wrench,
+  AlertTriangle,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -53,6 +56,17 @@ const outerRadar = computed(() => profile.value.radar_outer || {})
 const innerRadar = computed(() => profile.value.radar_inner || {})
 const issues = computed(() => growth.value.closed_loop_issues || [])
 const recursiveLogic = computed(() => growth.value.growth_analysis?.recursive_logic || [])
+const recurringPatterns = computed(() => growth.value.growth_analysis?.recurring_fix_patterns || [])
+
+/** pattern badge 配置 */
+const patternConfig = {
+  depth_first: { label: '深度递进', class: 'badge--success' },
+  surface_patch: { label: '排查有序/方案治标', class: 'badge--warning' },
+  trial_error: { label: '横向试错', class: 'badge--danger' },
+}
+function getPatternConfig(pattern) {
+  return patternConfig[pattern] || { label: pattern, class: 'badge--neutral' }
+}
 
 /** 日期范围压缩显示 */
 function compressDateRanges(rangeIds) {
@@ -157,7 +171,10 @@ function compressDateRanges(rangeIds) {
           >
             <div class="player__growth-header">
               <h4>{{ item.task_name }}</h4>
-              <span class="badge badge--primary">{{ item.label }}</span>
+              <span class="badge" :class="getPatternConfig(item.pattern).class">
+                {{ getPatternConfig(item.pattern).label }}
+              </span>
+              <span v-if="item.label" class="badge badge--primary">{{ item.label }}</span>
             </div>
             <p v-if="item.evidence_period" class="player__growth-period">
               {{ item.evidence_period }}
@@ -165,6 +182,55 @@ function compressDateRanges(rangeIds) {
             <ul v-if="item.reasoning_chain?.length" class="player__growth-chain">
               <li v-for="(step, i) in item.reasoning_chain" :key="i">{{ step }}</li>
             </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 工程债务追踪 -->
+      <div class="player__section" v-if="recurringPatterns.length > 0">
+        <h2 class="player__section-heading">
+          <AlertTriangle :size="20" :stroke-width="2" />
+          工程债务追踪
+          <span class="player__section-count">{{ recurringPatterns.length }}</span>
+        </h2>
+        <p class="player__section-desc">
+          识别同一模块长期反复修补但未进行架构重构的技术债务积累
+        </p>
+
+        <div class="player__debt-list">
+          <div
+            v-for="(rp, idx) in recurringPatterns"
+            :key="idx"
+            class="card player__debt-card"
+            :class="{ 'player__debt-card--risk': !rp.has_refactor && rp.fix_count >= 10 }"
+          >
+            <!-- 风险标记栏 -->
+            <div v-if="!rp.has_refactor" class="player__debt-risk-banner">
+              <AlertTriangle :size="14" :stroke-width="2.5" />
+              工程债务风险区
+            </div>
+
+            <div class="player__debt-header">
+              <Wrench :size="16" :stroke-width="2" />
+              <h4>{{ rp.module_name }}</h4>
+              <span
+                class="badge"
+                :class="rp.has_refactor ? 'badge--success' : 'badge--danger'"
+              >
+                {{ rp.has_refactor ? '✅ 已重构' : '❌ 未重构' }}
+              </span>
+            </div>
+            <div class="player__debt-stats">
+              <div class="player__debt-stat">
+                <span class="player__debt-stat-value">{{ rp.fix_count }}</span>
+                <span class="player__debt-stat-label">累计修补次数</span>
+              </div>
+              <div class="player__debt-stat">
+                <span class="player__debt-stat-value">{{ rp.span_weeks }}</span>
+                <span class="player__debt-stat-label">跨越周数</span>
+              </div>
+            </div>
+            <p class="player__debt-summary">{{ rp.summary }}</p>
           </div>
         </div>
       </div>
@@ -315,5 +381,96 @@ function compressDateRanges(rangeIds) {
   .player__profile {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── 板块副标题 ── */
+.player__section-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-top: calc(-1 * var(--space-4));
+  margin-bottom: var(--space-5);
+}
+
+/* ── 工程债务追踪 ── */
+.player__debt-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.player__debt-card {
+  border-left: 3px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.player__debt-card--risk {
+  border-left-color: #C62828;
+  border-left-width: 4px;
+}
+
+/* 风险标记栏 —— 卡片顶部红色警告条 */
+.player__debt-risk-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-5)) var(--space-4);
+  background: #C62828;
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.player__debt-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.player__debt-header h4 {
+  font-size: var(--text-base);
+  font-weight: 600;
+  flex: 1;
+}
+
+.player__debt-stats {
+  display: flex;
+  gap: var(--space-8);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+
+.player__debt-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.player__debt-stat-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+.player__debt-card--risk .player__debt-stat-value {
+  color: #C62828;
+}
+
+.player__debt-stat-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
+}
+
+.player__debt-summary {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
 }
 </style>

@@ -14,7 +14,16 @@ const statusConfig = {
   open: { label: '进行中', class: 'badge--warning', icon: AlertCircle },
 }
 
+const qualityConfig = {
+  root_fix: { label: '根因修复', class: 'timeline-item__quality--root' },
+  systematic_fix: { label: '体系化优化', class: 'timeline-item__quality--systematic' },
+  workaround: { label: '临时规避', class: 'timeline-item__quality--workaround' },
+  escalated: { label: '上报原厂', class: 'timeline-item__quality--escalated' },
+  inconclusive: { label: '未定论', class: 'timeline-item__quality--inconclusive' },
+}
+
 const getStatus = (status) => statusConfig[status] || statusConfig.open
+const getQuality = (q) => qualityConfig[q] || null
 </script>
 
 <template>
@@ -34,6 +43,13 @@ const getStatus = (status) => statusConfig[status] || statusConfig.open
         <h4 class="timeline-item__title">{{ issue.title || '未命名问题' }}</h4>
         <span class="badge" :class="getStatus(issue.status).class">
           {{ getStatus(issue.status).label }}
+        </span>
+        <span
+          v-if="getQuality(issue.closure_quality)"
+          class="timeline-item__quality"
+          :class="getQuality(issue.closure_quality).class"
+        >
+          {{ getQuality(issue.closure_quality).label }}
         </span>
       </div>
 
@@ -125,6 +141,43 @@ const getStatus = (status) => statusConfig[status] || statusConfig.open
   font-weight: 600;
   color: var(--color-text);
   line-height: 1.4;
+  flex: 1;
+}
+
+/* 闭环质量标签 */
+.timeline-item__quality {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.timeline-item__quality--root {
+  background: rgba(46, 125, 50, 0.12);
+  color: #2E7D32;
+}
+
+.timeline-item__quality--systematic {
+  background: rgba(21, 101, 192, 0.12);
+  color: #1565C0;
+}
+
+.timeline-item__quality--workaround {
+  background: rgba(230, 81, 0, 0.12);
+  color: #E65100;
+}
+
+.timeline-item__quality--escalated {
+  background: rgba(120, 120, 120, 0.12);
+  color: #757575;
+}
+
+.timeline-item__quality--inconclusive {
+  background: rgba(120, 120, 120, 0.08);
+  color: #9E9E9E;
 }
 
 .timeline-item__meta {

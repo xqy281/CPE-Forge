@@ -11,6 +11,8 @@ import {
   Layers,
   Flame,
   ChevronRight,
+  Plus,
+  Minus,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -51,6 +53,19 @@ const innerLayers = computed(() => {
     return { ...layer, level: val.level || 0, evidence: val.evidence || [] }
   })
 })
+
+/** 判断证据极性 */
+function getEvidencePolarity(ev) {
+  const trimmed = (ev || '').trim()
+  if (trimmed.startsWith('[-]') || trimmed.startsWith('[-]')) return 'negative'
+  if (trimmed.startsWith('[+]') || trimmed.startsWith('[+]')) return 'positive'
+  return 'neutral'
+}
+
+/** 去掉 [+]/[-] 前缀，保留正文 */
+function stripPrefix(ev) {
+  return (ev || '').replace(/^\[[-+]\]\s*/, '').replace(/^【/, '【')
+}
 </script>
 
 <template>
@@ -134,11 +149,24 @@ const innerLayers = computed(() => {
             ></div>
           </div>
           <p class="score-panel__layer-desc">{{ layer.desc }}</p>
-          <!-- 证据链（折叠前2条） -->
+          <!-- 证据链（全部显示，正负向颜色区分） -->
           <ul v-if="layer.evidence.length > 0" class="score-panel__evidence">
-            <li v-for="(ev, i) in layer.evidence.slice(0, 2)" :key="i">
-              <ChevronRight :size="12" :stroke-width="2" />
-              {{ ev }}
+            <li
+              v-for="(ev, i) in layer.evidence"
+              :key="i"
+              :class="{
+                'score-panel__evidence--positive': getEvidencePolarity(ev) === 'positive',
+                'score-panel__evidence--negative': getEvidencePolarity(ev) === 'negative',
+              }"
+            >
+              <span v-if="getEvidencePolarity(ev) === 'positive'" class="score-panel__ev-icon score-panel__ev-icon--pos">
+                <Plus :size="10" :stroke-width="3" />
+              </span>
+              <span v-else-if="getEvidencePolarity(ev) === 'negative'" class="score-panel__ev-icon score-panel__ev-icon--neg">
+                <Minus :size="10" :stroke-width="3" />
+              </span>
+              <ChevronRight v-else :size="12" :stroke-width="2" />
+              {{ stripPrefix(ev) }}
             </li>
           </ul>
           <!-- 递进箭头 -->
@@ -379,6 +407,45 @@ const innerLayers = computed(() => {
   color: var(--color-text-secondary);
   line-height: 1.6;
   padding: var(--space-1) 0;
+  border-radius: var(--radius-sm);
+}
+
+/* 正向证据 */
+.score-panel__evidence--positive {
+  color: #2E7D32;
+  background: rgba(46, 125, 50, 0.06);
+  padding: var(--space-1) var(--space-2) !important;
+  margin-bottom: 2px;
+}
+
+/* 负向证据 */
+.score-panel__evidence--negative {
+  color: #C62828;
+  background: rgba(198, 40, 40, 0.06);
+  padding: var(--space-1) var(--space-2) !important;
+  margin-bottom: 2px;
+}
+
+/* 证据极性图标 */
+.score-panel__ev-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.score-panel__ev-icon--pos {
+  background: #2E7D32;
+  color: #fff;
+}
+
+.score-panel__ev-icon--neg {
+  background: #C62828;
+  color: #fff;
 }
 
 .score-panel__arrow {

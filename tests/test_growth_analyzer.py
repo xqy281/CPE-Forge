@@ -12,6 +12,7 @@ from pipeline.growth_analyzer import (
     _validate_growth_result,
     _validate_issue,
     _validate_recursive_logic,
+    _validate_recurring_pattern,
 )
 from pipeline.llm_client import CPELLMClient
 
@@ -71,6 +72,17 @@ class TestGrowthPromptLoading:
         assert "closed_loop_issues" in content
         assert "depth_first" in content
 
+    def test_prompt_contains_quality_and_patterns(self):
+        """改进后的 prompt 应包含闭环质量和反复修补模式"""
+        prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "growth_system.md"
+        content = prompt_path.read_text(encoding="utf-8")
+        assert "closure_quality" in content, "缺少闭环质量字段"
+        assert "root_fix" in content, "缺少 root_fix 闭环质量等级"
+        assert "workaround" in content, "缺少 workaround 闭环质量等级"
+        assert "surface_patch" in content, "缺少 surface_patch 中间模式"
+        assert "recurring_fix_patterns" in content, "缺少反复修补模式"
+        assert "has_refactor" in content, "缺少重构标记字段"
+
 
 # ============================================================================
 # 闭环问题校验测试
@@ -99,6 +111,22 @@ class TestValidateIssue:
         issue = _validate_issue({"duration_weeks": "abc"})
         assert issue["duration_weeks"] == 0
 
+    def test_closure_quality_default(self):
+        """缺失 closure_quality 应自动补充空字符串"""
+        issue = _validate_issue({"title": "测试"})
+        assert issue["closure_quality"] == ""
+
+    def test_valid_closure_quality_passes(self):
+        """合法的 closure_quality 值应通过"""
+        for quality in ["root_fix", "systematic_fix", "workaround", "escalated", "inconclusive"]:
+            issue = _validate_issue({"closure_quality": quality})
+            assert issue["closure_quality"] == quality
+
+    def test_invalid_closure_quality_reset(self):
+        """非法 closure_quality 应被重置为空字符串"""
+        issue = _validate_issue({"closure_quality": "invalid_value"})
+        assert issue["closure_quality"] == ""
+
 
 # ============================================================================
 # 递进分析校验测试
@@ -122,6 +150,11 @@ class TestValidateRecursiveLogic:
         """非法 pattern 值应被重置为 unknown"""
         item = _validate_recursive_logic({"pattern": "invalid"})
         assert item["pattern"] == "unknown"
+
+    def test_surface_patch_pattern_valid(self):
+        """surface_patch 应为合法的 pattern 值"""
+        item = _validate_recursive_logic({"pattern": "surface_patch"})
+        assert item["pattern"] == "surface_patch"
 
     def test_missing_fields_filled(self):
         """缺失字段应补充默认值"""
@@ -148,6 +181,7 @@ class TestValidateGrowthResult:
         result = _validate_growth_result({})
         assert result["closed_loop_issues"] == []
         assert result["growth_analysis"]["recursive_logic"] == []
+        assert result["growth_analysis"]["recurring_fix_patterns"] == []
 
     def test_invalid_issues_type_fixed(self):
         """非列表的 issues 应修正"""
@@ -192,3 +226,39 @@ class TestAnalyzeGrowth:
         )
         assert "closed_loop_issues" in result
         assert "growth_analysis" in result
+
+
+# ============================================================================
+# 反复修补模式校验测试
+# ============================================================================
+
+class TestValidateRecurringPattern:
+    """反复修补模式记录校验"""
+
+    def test_valid_pattern(self):
+        """合法的反复修补记录应通过"""
+        item = _validate_recurring_pattern({
+            "module_name": "mesh组网",
+            "fix_count": 15,
+            "span_weeks": 20,
+            "has_refactor": False,
+            "summary": "跨20周反复修补",
+        })
+        assert item["module_name"] == "mesh组网"
+        assert item["fix_count"] == 15
+        assert item["has_refactor"] is False
+
+    def test_missing_fields_filled(self):
+        """缺失字段应补充默认值"""
+        item = _validate_recurring_pattern({})
+        assert item["module_name"] == ""
+        assert item["fix_count"] == 0
+        assert item["span_weeks"] == 0
+        assert item["has_refactor"] is False
+        assert item["summary"] == ""
+
+    def test_invalid_fix_count_fixed(self):
+        """非法 fix_count 应被修正"""
+        item = _validate_recurring_pattern({"fix_count": "abc"})
+        assert item["fix_count"] == 0
+

@@ -778,3 +778,61 @@ export default {
   - 局域网用户访问 `http://<本机IP>:5173` 即可使用完整平台
   - 如遇虚拟网卡绑定问题，可考虑指定具体网卡 IP 而非 0.0.0.0
 ---
+
+---
+### 🕒 2026-03-12 10:40 | 🖥️ 窗口/任务: System Prompt 工程素养量化精度打磨
+- **已完成事项**：
+  - 全面重写 `prompts/profile_system.md`，提升内层素养（工程素养成熟度）评分精度
+  - 新增「⚠️ 自我美化偏差警告」段落，教 LLM 穿透"解决了XX"的表面叙述
+  - 重写三维度等级定义表（Lv1~Lv5），Lv4 锚定为「需有重构/解耦/抽象证据」
+  - 新增「反模式信号词典」（9 类反模式），基于全员 13 人周报 grep 提取
+  - 反模式类别：阻塞式补丁、关注点耦合、状态回避、旁路劫持、结构扭曲、修而不治、临时方案长期化、暴力覆盖、延时调参法
+  - 新增 3 个反例 Few-Shot + 1 个正例 Few-Shot（示例三~六）
+  - 证据格式改为 `[+]`/`[-]` 前缀标记正负向，评级是博弈结果
+  - 新增 1 个单元测试（`test_prompt_contains_anti_pattern_framework`），13 个测试全通过
+- **涉及文件**：
+  - `prompts/profile_system.md` [重写：反模式检测框架 + 话术免疫 + 精细等级定义]
+  - `tests/test_profile_extractor.py` [修改：新增 Prompt 关键段落检测测试]
+- **关键决策/踩坑记录**：
+  - 反模式词典不能只基于单一员工，需覆盖全员：liuzhibin 大量延时补丁、linyi sleep 但承认根因未究、xiaoqianyun 有重构也有临时 patch、yetianxiang 消除硬编码改配置化
+  - JSON 输出格式完全不变，前端无需修改
+  - 旧提取结果（如 hezongfeng Lv4/Lv4/Lv4）需重新跑 LLM 才会更新
+- **给其他 Agent 的交接/下一步**：
+  - 用户需手动重跑 LLM 分析：`python scripts/run_llm_analysis.py --email hezongfeng@jointelli.com --profile-only`
+  - 建议全员批量重跑以更新所有分析缓存
+  - 如评分区分度仍不够，可进一步调整反模式信号的严重程度阈值
+---
+
+---
+### 🕒 2026-03-12 11:10 | 🖥️ 窗口/任务: Growth System Prompt 精度打磨
+- **已完成事项**：
+  - 全面重写 `prompts/growth_system.md`，提升成长分析提取精度
+  - 新增**闭环质量评判** `closure_quality`（5级：root_fix / systematic_fix / workaround / escalated / inconclusive）
+  - 新增**中间模式** `surface_patch`（排查有序但方案治标），补充 depth_first 和 trial_error 之间的空白
+  - 新增**反复修补时间线洞察** `recurring_fix_patterns`（识别同模块跨多周反复 bug fix 无重构的模式）
+  - 扩展 `growth_analyzer.py` 校验逻辑：closure_quality 合法值校验、surface_patch pattern、recurring_fix_patterns 校验
+  - 新增 8 个单元测试，全部 34 个测试通过
+- **涉及文件**：
+  - `prompts/growth_system.md` [重写：闭环质量 + 中间模式 + 反复修补]
+  - `pipeline/growth_analyzer.py` [修改：新增校验逻辑]
+  - `tests/test_growth_analyzer.py` [修改：新增 8 个测试]
+- **关键决策**：
+  - JSON 输出格式向后兼容：新增字段有默认值，旧格式数据不受影响
+  - 旧 growth 分析结果需重新跑 LLM 才会包含新增字段
+---
+
+---
+### 🕒 2026-03-12 12:00 | 🖥️ 窗口/任务: 画像页面 UI 适配新增量化字段
+- **已完成事项**：
+  - **ScorePanel 证据正负向颜色区分**：展示全部证据（移除截断），`[+]` 绿色圆形图标+浅绿背景，`[-]` 红色圆形图标+浅红背景
+  - **TimelineCard 闭环质量标签**：新增五色标签（`根因修复`绿 / `体系化优化`蓝 / `临时规避`橙 / `上报原厂`灰 / `未定论`浅灰）
+  - **工程债务追踪板块**：新增整个板块展示 `recurring_fix_patterns`，包含模块名+修补次数+跨越周数+重构标记+风险横幅
+  - 成长递进分析 badge 新增 `surface_patch`（排查有序/方案治标）中间模式支持
+- **涉及文件**：
+  - `web/frontend/src/components/ScorePanel.vue` [修改：证据正负向渲染]
+  - `web/frontend/src/components/TimelineCard.vue` [修改：闭环质量标签]
+  - `web/frontend/src/views/PlayerView.vue` [修改：新增工程债务追踪板块]
+- **关键决策**：
+  - `has_refactor=false` 时卡片顶部显示红色「工程债务风险区」横幅 + 数字变红
+  - `has_refactor=true` 时显示绿色「已重构」标签，视为正向成长弧线
+---

@@ -105,6 +105,19 @@ def _validate_growth_result(result: dict[str, Any]) -> dict[str, Any]:
         validated_recursive.append(validated_item)
 
     growth["recursive_logic"] = validated_recursive
+
+    # 校验 recurring_fix_patterns（新增功能3）
+    recurring = growth.get("recurring_fix_patterns", [])
+    if not isinstance(recurring, list):
+        recurring = []
+
+    validated_recurring = []
+    for item in recurring:
+        if not isinstance(item, dict):
+            continue
+        validated_recurring.append(_validate_recurring_pattern(item))
+
+    growth["recurring_fix_patterns"] = validated_recurring
     result["growth_analysis"] = growth
 
     return result
@@ -120,7 +133,16 @@ def _validate_issue(issue: dict) -> dict:
     issue.setdefault("timeline", [])
     issue.setdefault("root_cause", "")
     issue.setdefault("solution", "")
+    issue.setdefault("closure_quality", "")
     issue.setdefault("tags", [])
+
+    # closure_quality 合法值校验
+    _VALID_CLOSURE_QUALITIES = (
+        "root_fix", "systematic_fix", "workaround", "escalated", "inconclusive", ""
+    )
+    if issue["closure_quality"] not in _VALID_CLOSURE_QUALITIES:
+        logger.warning("闭环质量值 '%s' 不合法，已重置为空", issue["closure_quality"])
+        issue["closure_quality"] = ""
 
     # 确保 timeline 是列表
     if not isinstance(issue["timeline"], list):
@@ -157,12 +179,35 @@ def _validate_recursive_logic(item: dict) -> dict:
     item.setdefault("label", "")
     item.setdefault("evidence_period", "")
 
-    # 确保 pattern 值合法
-    if item["pattern"] not in ("depth_first", "trial_error", "unknown"):
+    # 确保 pattern 值合法（新增 surface_patch）
+    if item["pattern"] not in ("depth_first", "surface_patch", "trial_error", "unknown"):
         item["pattern"] = "unknown"
 
     # 确保 reasoning_chain 是列表
     if not isinstance(item["reasoning_chain"], list):
         item["reasoning_chain"] = []
+
+    return item
+
+
+def _validate_recurring_pattern(item: dict) -> dict:
+    """校验单个反复修补模式记录"""
+    item.setdefault("module_name", "")
+    item.setdefault("fix_count", 0)
+    item.setdefault("span_weeks", 0)
+    item.setdefault("has_refactor", False)
+    item.setdefault("summary", "")
+
+    # 类型校验
+    try:
+        item["fix_count"] = int(item["fix_count"])
+    except (TypeError, ValueError):
+        item["fix_count"] = 0
+    try:
+        item["span_weeks"] = int(item["span_weeks"])
+    except (TypeError, ValueError):
+        item["span_weeks"] = 0
+    if not isinstance(item["has_refactor"], bool):
+        item["has_refactor"] = bool(item["has_refactor"])
 
     return item
