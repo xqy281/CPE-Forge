@@ -121,13 +121,17 @@ def extract_attachments_from_eml_dir(
     output_dir: Path,
 ) -> dict[str, datetime]:
     """
-    从 EML 目录提取所有 Excel 附件到 output_dir，按发件人邮箱分目录。
+    从 EML 目录提取所有 Excel 附件到 output_dir，按员工邮箱分目录。
 
     同时返回日期校准映射表（附件文件名 → 邮件发送日期）。
     此函数替代原 extract.py 脚本。
 
-    注意：使用 From 头做目录分类（与原 extract.py 一致），
-    但校准映射表不依赖 From（转发邮件安全）。
+    **关键设计**：不直接使用 From 头做目录分类（转发邮件的 From 是
+    转发者而非原始发送者）。改为：
+    1. 第一遍：扫描全部 EML，建立「员工姓名 → 发件人邮箱」映射
+       （从非转发邮件中学习，附件文件名含员工姓名）
+    2. 第二遍：提取附件时，优先用文件名中的员工姓名查映射表确定
+       正确的邮箱目录；映射表查不到时才 fallback 到 From 头
 
     Args:
         eml_dir: EML 邮件目录
@@ -140,16 +144,59 @@ def extract_attachments_from_eml_dir(
     from email import policy as _policy
     from email.parser import BytesParser
     from email.utils import parseaddr
+    from pipeline.utils import extract_employee_name_from_filename
 
     if not eml_dir.exists():
         logger.warning("EML 目录不存在: %s", eml_dir)
         return {}
 
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── 第一遍：构建「员工姓名 → 邮箱」映射 ──────────────────────
+    # 从非转发邮件中学习：附件文件名包含员工姓名，From 头是可信的
+    name_to_email: dict[str, str] = {}
+    eml_files = sorted(eml_dir.glob("*.eml"))
+    logger.info("EML 提取: 扫描 %d 个文件，构建员工映射...", len(eml_files))
+
+    for eml_path in eml_files:
+        # 跳过转发/回复邮件（From 不可信）
+        eml_name_lower = eml_path.name.lower()
+        if any(kw in eml_name_lower for kw in ("转发", "回复", "re_", "fw_", "fwd_")):
+            continue
+
+        try:
+            with open(eml_path, "rb") as f:
+                msg = BytesParser(policy=_policy.default).parse(f)
+        except Exception:
+            continue
+
+        _, sender_email = parseaddr(msg.get("From", ""))
+        if not sender_email or "@" not in sender_email:
+            continue
+
+        # 从附件文件名提取员工姓名
+        for part in msg.walk():
+            if part.get_content_disposition() != "attachment":
+                continue
+            att_fn = part.get_filename()
+            if not att_fn:
+                continue
+            att_fn = _decode_header(att_fn) if isinstance(att_fn, str) else att_fn
+            if not att_fn.lower().endswith((".xls", ".xlsx")):
+                continue
+            emp_name = extract_employee_name_from_filename(att_fn)
+            if emp_name and emp_name not in name_to_email:
+                name_to_email[emp_name] = sender_email
+
+    logger.info("员工映射: %d 个姓名 → 邮箱", len(name_to_email))
+    for name, em in sorted(name_to_email.items()):
+        logger.info("  %s → %s", name, em)
+
+    # ── 第二遍：提取附件 ──────────────────────────────────────
     calibration_map: dict[str, datetime] = {}
     extracted_count = 0
 
-    for eml_path in sorted(eml_dir.glob("*.eml")):
+    for eml_path in eml_files:
         try:
             with open(eml_path, "rb") as f:
                 msg = BytesParser(policy=_policy.default).parse(f)
@@ -164,11 +211,10 @@ def extract_attachments_from_eml_dir(
         except Exception:
             sent_date = None
 
-        # 获取发件人邮箱（用于按人分目录，与原 extract.py 一致）
+        # 获取 From（仅作 fallback）
         _, sender_email = parseaddr(msg.get("From", ""))
         if not sender_email:
             sender_email = "unknown_sender"
-        safe_sender = _sanitize_filename(sender_email)
 
         # 提取 Excel 附件
         for part in msg.walk():
@@ -181,10 +227,15 @@ def extract_attachments_from_eml_dir(
             if not att_filename.lower().endswith((".xls", ".xlsx")):
                 continue
 
+            # 确定目标邮箱目录：优先用附件文件名中的员工姓名查映射表
+            emp_name = extract_employee_name_from_filename(att_filename)
+            target_email = name_to_email.get(emp_name, sender_email) if emp_name else sender_email
+            safe_target = _sanitize_filename(target_email)
+
             # 保存附件
-            sender_dir = output_dir / safe_sender
-            sender_dir.mkdir(parents=True, exist_ok=True)
-            save_path = _get_unique_filepath(sender_dir, att_filename)
+            target_dir = output_dir / safe_target
+            target_dir.mkdir(parents=True, exist_ok=True)
+            save_path = _get_unique_filepath(target_dir, att_filename)
             payload = part.get_payload(decode=True)
             if payload:
                 save_path.write_bytes(payload)
