@@ -836,3 +836,24 @@ export default {
   - `has_refactor=false` 时卡片顶部显示红色「工程债务风险区」横幅 + 数字变红
   - `has_refactor=true` 时显示绿色「已重构」标签，视为正向成长弧线
 ---
+
+---
+### 🕒 2026-03-12 12:24 | 🖥️ 窗口/任务: 团队大盘贡献者卡片功能
+- **已完成事项**：
+  - 新增 `ContributorCard.vue` 贡献者技术维度卡片组件（精简版 ScorePanel，仅 5 维度打分）
+  - 重写 `DashboardView.vue`：雷达图上方增加 pill 样式维度筛选按钮组 + 下方贡献者卡片网格
+  - 默认展示全部贡献者卡片，标题「全部贡献者（N人）」+ 提示文案
+  - 点击维度筛选按钮后筛选 proportion > 0 的贡献者，**按该维度 proportion 降序排序**，雷达图聚合数据联动更新
+  - 再次点击取消筛选，卡片切换使用 transition-group 动画
+  - 贡献者姓名可点击跳转个人画像页面
+- **涉及文件**：
+  - `web/frontend/src/components/ContributorCard.vue` [新增]
+  - `web/frontend/src/views/DashboardView.vue` [重写]
+- **关键决策/踩坑记录**：
+  - 后端 API 无修改，现有 `/api/analysis/all` 返回的 results 已包含完整 profile 数据
+  - 雷达图聚合数据基于 filteredContributors 计算（筛选联动效果）
+  - ContributorCard 不含工程素养基石，证据链内容在大盘展示不合适
+- **给其他 Agent 的交接/下一步**：
+  - 目前仅 3 位员工有分析数据，更多员工跑完 LLM 分析后卡片会自动增加
+  - 如需按其他条件筛选（如按素养等级），可扩展 selectedDim 逻辑
+---

@@ -1,21 +1,40 @@
 <script setup>
 /**
  * DashboardView — 团队大盘
- * 聚合所有已分析员工的统计数据和能力均值
+ * 聚合所有已分析员工的统计数据、能力均值和贡献者卡片
+ *
+ * 交互：
+ * - 默认展示全部贡献者的技术维度卡片
+ * - 点击维度筛选按钮后，仅展示该方向 proportion > 0 的贡献者
+ * - 再次点击同一按钮取消筛选
  */
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '@/api'
 import RadarChart from '@/components/RadarChart.vue'
+import ContributorCard from '@/components/ContributorCard.vue'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
 import {
   Users,
   BarChart3,
   Clock,
   TrendingUp,
+  Filter,
 } from 'lucide-vue-next'
 
 const loading = ref(true)
 const dashData = ref(null)
+const selectedDim = ref(null)  // 当前选中的技术维度 key（null = 显示全部）
+const router = useRouter()
+
+// 维度标签映射
+const DIM_LABELS = {
+  system_platform: '系统平台',
+  driver_development: '底层驱动',
+  application_software: '上层应用',
+  wireless_communication: '无线通信',
+  sqa_quality: 'SQA质量',
+}
 
 onMounted(async () => {
   try {
@@ -27,12 +46,17 @@ onMounted(async () => {
   }
 })
 
+// 有 profile 数据的员工列表
+const contributors = computed(() => {
+  if (!dashData.value) return []
+  return (dashData.value.results || []).filter((r) => r.profile?.radar_outer)
+})
+
 // 聚合统计
 const stats = computed(() => {
   if (!dashData.value) return null
   const results = dashData.value.results || []
 
-  // 总闭环问题数
   let totalIssues = 0
   let totalResolvedIssues = 0
   results.forEach((r) => {
@@ -49,16 +73,12 @@ const stats = computed(() => {
   }
 })
 
-// 聚合雷达图数据（取均值）
+// 聚合雷达图数据（基于 filteredContributors 取均值）
 const avgProfile = computed(() => {
-  if (!dashData.value) return null
-  const results = dashData.value.results || []
-  if (results.length === 0) return null
+  const source = filteredContributors.value
+  if (!source || source.length === 0) return null
 
-  const dims = [
-    'system_platform', 'driver_development',
-    'application_software', 'wireless_communication', 'sqa_quality',
-  ]
+  const dims = Object.keys(DIM_LABELS)
 
   const sumProportion = {}
   const sumDepth = {}
@@ -68,7 +88,7 @@ const avgProfile = computed(() => {
   })
 
   let count = 0
-  results.forEach((r) => {
+  source.forEach((r) => {
     const outer = r.profile?.radar_outer
     if (!outer) return
     count++
@@ -92,6 +112,42 @@ const avgProfile = computed(() => {
 
   return { radar_outer: radarOuter }
 })
+
+// 按选中维度筛选并排序贡献者（按该维度 proportion 降序）
+const filteredContributors = computed(() => {
+  if (!selectedDim.value) return contributors.value
+  const dim = selectedDim.value
+  return contributors.value
+    .filter((r) => {
+      const val = r.profile?.radar_outer?.[dim]
+      return val && (val.proportion || 0) > 0
+    })
+    .sort((a, b) => {
+      const pa = a.profile?.radar_outer?.[dim]?.proportion || 0
+      const pb = b.profile?.radar_outer?.[dim]?.proportion || 0
+      return pb - pa
+    })
+})
+
+// 筛选状态描述
+const filterLabel = computed(() => {
+  const total = contributors.value.length
+  const filtered = filteredContributors.value.length
+  if (!selectedDim.value) {
+    return `全部贡献者（${total} 人）`
+  }
+  return `${DIM_LABELS[selectedDim.value]}方向贡献者（${filtered} 人 / 共 ${total} 人）`
+})
+
+// 点击维度筛选按钮
+function toggleDim(dimKey) {
+  selectedDim.value = selectedDim.value === dimKey ? null : dimKey
+}
+
+// 点击贡献者姓名跳转个人画像
+function goToPlayer(email) {
+  router.push(`/player/${encodeURIComponent(email)}`)
+}
 </script>
 
 <template>
@@ -146,13 +202,68 @@ const avgProfile = computed(() => {
         </div>
       </div>
 
-      <!-- 聚合雷达图 -->
+      <!-- 聚合雷达图 + 维度筛选 -->
       <div v-if="avgProfile" class="dashboard__radar card" style="margin-top: var(--space-8);">
-        <h3 class="player__section-title" style="margin-bottom: var(--space-5);">
+        <h3 class="player__section-title" style="margin-bottom: var(--space-4);">
           团队平均能力雷达
         </h3>
+
+        <!-- 维度筛选按钮组 -->
+        <div class="dashboard__dim-filters">
+          <Filter :size="14" :stroke-width="2" style="color: var(--color-text-tertiary); flex-shrink: 0;" />
+          <button
+            v-for="(label, key) in DIM_LABELS"
+            :key="key"
+            class="dashboard__dim-pill"
+            :class="{ 'dashboard__dim-pill--active': selectedDim === key }"
+            @click="toggleDim(key)"
+          >
+            {{ label }}
+          </button>
+          <button
+            v-if="selectedDim"
+            class="dashboard__dim-pill dashboard__dim-pill--clear"
+            @click="selectedDim = null"
+          >
+            清除筛选
+          </button>
+        </div>
+
         <div style="max-width: 500px; margin: 0 auto;">
           <RadarChart :profile-data="avgProfile" />
+        </div>
+      </div>
+
+      <!-- 贡献者卡片网格 -->
+      <div v-if="contributors.length > 0" class="dashboard__contributors" style="margin-top: var(--space-8);">
+        <div class="dashboard__contributors-header">
+          <h3 class="player__section-title">{{ filterLabel }}</h3>
+          <p class="dashboard__contributors-hint">
+            以下贡献者的数据构成了上方团队聚合雷达图
+          </p>
+        </div>
+
+        <transition-group
+          name="card-fade"
+          tag="div"
+          class="dashboard__contributors-grid"
+        >
+          <ContributorCard
+            v-for="c in filteredContributors"
+            :key="c.employee_email"
+            :name="c.employee_name"
+            :email="c.employee_email"
+            :outer-data="c.profile?.radar_outer || {}"
+            @click-name="goToPlayer"
+          />
+        </transition-group>
+
+        <!-- 筛选无结果 -->
+        <div v-if="filteredContributors.length === 0 && selectedDim" class="dashboard__no-result">
+          <p>该方向暂无贡献者数据</p>
+          <button class="dashboard__dim-pill" @click="selectedDim = null">
+            显示全部
+          </button>
         </div>
       </div>
 
@@ -169,5 +280,99 @@ const avgProfile = computed(() => {
 <style scoped>
 .dashboard__radar {
   padding: var(--space-8);
+}
+
+/* ── 维度筛选按钮组 ── */
+.dashboard__dim-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.dashboard__dim-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.dashboard__dim-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.dashboard__dim-pill--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.dashboard__dim-pill--active:hover {
+  background: #A0360A;
+  border-color: #A0360A;
+  color: #ffffff;
+}
+
+.dashboard__dim-pill--clear {
+  border-style: dashed;
+  color: var(--color-text-tertiary);
+}
+
+/* ── 贡献者区域 ── */
+.dashboard__contributors-header {
+  margin-bottom: var(--space-5);
+}
+
+.dashboard__contributors-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
+}
+
+.dashboard__contributors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-5);
+}
+
+.dashboard__no-result {
+  text-align: center;
+  padding: var(--space-8) 0;
+  color: var(--color-text-tertiary);
+}
+
+.dashboard__no-result p {
+  margin-bottom: var(--space-3);
+}
+
+/* ── 卡片动画 ── */
+.card-fade-enter-active,
+.card-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.card-fade-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.card-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.card-fade-move {
+  transition: transform 0.3s ease;
 }
 </style>
