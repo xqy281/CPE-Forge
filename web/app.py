@@ -64,4 +64,4 @@ if __name__ == "__main__":
     logger.info(f"启动 Web API — Attachments: {ATTACHMENTS_DIR}, Output: {OUTPUT_DIR}")
 
     # 监听所有网卡接口，允许局域网访问；端口 5000（Vite 代理到此地址）
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
