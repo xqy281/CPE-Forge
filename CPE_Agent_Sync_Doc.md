@@ -713,3 +713,30 @@ export default {
   - 从空项目部署只需：代码 + emails/ 目录 + `start.bat` 一键启动
   - 如需强制重跑清洗：删除 `output/cleaning_report.json` 后重启
 ---
+
+---
+### 🕒 2026-03-12 08:10 | 🖥️ 窗口/任务: 全新部署全流程排查与修复
+- **已完成事项**：
+  - 用 `git clean -fdx` 模拟全新克隆环境，从零完整走通 `start.bat` 六步流程
+  - **修复1**：`start.bat` 增加 `where npm` 前置检测，缺少 Node.js 时输出下载链接并降级为「仅后端」模式
+  - **修复2**：`web/app.py` Flask host 从 `0.0.0.0` 改为 `127.0.0.1`（根因：WSL/Hyper-V 虚拟网卡导致 `0.0.0.0` 绑定非 localhost 地址）
+  - **修复3**：`vite.config.js` 代理目标从 `localhost` 改为 `127.0.0.1`
+  - **修复4**：`start.bat` **闪退根因**——文件使用 LF 换行符，cmd.exe 无法正确解析。转为 CRLF + 去除 BOM
+  - **修复5**：`if` 块内 `::` 注释改为 `REM`（`::` 是标签，在 if 块内会破坏语法）
+  - **修复6**：中文 `或` 字在 chcp 65001 的 cmd.exe 下被错误解析为命令，调整措辞
+  - 新增 `.gitattributes` 强制 `*.bat eol=crlf`，防止 Git 跨平台同步时换行符变回 LF
+  - 全流程验证通过：虚拟环境→依赖安装→模型配置→npm install→数据清洗→前后端启动→API 代理→UI 渲染
+- **涉及文件**：
+  - `start.bat` [修改：npm 检测 + 条件分支 + CRLF + REM 注释]
+  - `web/app.py` [修改：host 0.0.0.0 → 127.0.0.1]
+  - `web/frontend/vite.config.js` [修改：proxy target localhost → 127.0.0.1]
+  - `.gitattributes` [新增：强制 *.bat CRLF]
+- **关键决策/踩坑记录**：
+  - `.bat` 文件 LF 换行 → cmd.exe exit code 1 且无任何输出，极难排查
+  - `::` 在 `if (...)` 块内是经典 batch 陷阱，必须用 `REM`
+  - `chcp 65001` 下某些中文字符（如 `或`）的 UTF-8 字节序列恰好构成 cmd.exe 可执行命令名
+- **给其他 Agent 的交接/下一步**：
+  - 全新部署只需：`git clone` + 放入 `emails/` 数据 + 运行 `start.bat`
+  - 目标机器需预装 Python 3.10+ 和 Node.js 18+
+  - `.gitattributes` 确保 bat 文件始终 CRLF，不再出现换行符问题
+---

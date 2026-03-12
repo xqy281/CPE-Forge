@@ -1,0 +1,2 @@
+# Windows batch 脚本必须使用 CRLF 换行符
+*.bat text eol=crlf

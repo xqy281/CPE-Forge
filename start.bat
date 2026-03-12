@@ -52,19 +52,33 @@ echo       完成（配置文件位于 config/models/）
 :: 4. 前端依赖
 :: ============================================
 echo [4/6] 检查前端依赖...
-if not exist "web\frontend\node_modules" (
-    echo       安装 npm 依赖中...
-    cd web\frontend
-    call npm install
-    if errorlevel 1 (
-        echo [错误] npm install 失败，请确保已安装 Node.js 18+
-        pause
-        exit /b 1
-    )
-    cd ..\..
-    echo       完成
+set "SKIP_FRONTEND=0"
+where npm >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo [警告] 未检测到 Node.js / npm！前端界面无法启动。
+    echo        请从以下地址下载安装 Node.js 18+：
+    echo        https://nodejs.org/
+    echo.
+    echo        安装完成后重新运行本脚本即可。
+    echo        现在将以「仅后端」模式继续启动...
+    echo.
+    set "SKIP_FRONTEND=1"
 ) else (
-    echo       已存在
+    if not exist "web\frontend\node_modules" (
+        echo       安装 npm 依赖中...
+        cd web\frontend
+        call npm install
+        if errorlevel 1 (
+            echo [错误] npm install 失败
+            pause
+            exit /b 1
+        )
+        cd ..\..
+        echo       完成
+    ) else (
+        echo       已存在
+    )
 )
 
 :: 创建必要目录
@@ -105,28 +119,36 @@ start "CPE-Forge Backend" cmd /c "cd /d %PROJECT_DIR% && .venv\Scripts\python.ex
 :: 等待后端启动
 timeout /t 2 /nobreak >nul
 
-:: 后台启动 Vite 前端
-echo       启动前端 (Vite :5173)...
-start "CPE-Forge Frontend" cmd /c "cd /d %PROJECT_DIR%\web\frontend && npm run dev"
+if "%SKIP_FRONTEND%"=="0" (
+    REM 后台启动 Vite 前端
+    echo       启动前端 (Vite :5173^)...
+    start "CPE-Forge Frontend" cmd /c "cd /d %PROJECT_DIR%\web\frontend && npm run dev"
 
-:: 等待前端启动
-timeout /t 3 /nobreak >nul
+    REM 等待前端启动
+    timeout /t 3 /nobreak >nul
 
-:: 打开浏览器
-echo.
-echo ============================================
-echo   服务已启动！
-echo   前端地址: http://localhost:5173
-echo   后端地址: http://localhost:5000
-echo ============================================
+    REM 打开浏览器
+    echo.
+    echo ============================================
+    echo   服务已启动！
+    echo   前端地址: http://localhost:5173
+    echo   后端地址: http://localhost:5000
+    echo ============================================
+    start http://localhost:5173
+) else (
+    echo.
+    echo ============================================
+    echo   后端已启动！（前端未启动 — 缺少 Node.js）
+    echo   后端地址: http://localhost:5000/api/employees
+    echo   请安装 Node.js 18+ 后重新运行以启用 Web 界面
+    echo ============================================
+)
 echo.
 echo   首次使用请：
 echo   1. 将周报 EML 放入 emails/ 目录，重启即自动提取和清洗
-echo   2. 或将周报 Excel 直接放入 attachments/ 目录
+echo   2. 也可将周报 Excel 直接放入 attachments/ 目录
 echo   3. 在「模型配置」页面设置 API Key
 echo ============================================
-
-start http://localhost:5173
 
 echo.
 echo 按任意键关闭此窗口（不影响已启动的服务）
