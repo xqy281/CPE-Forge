@@ -740,3 +740,41 @@ export default {
   - 目标机器需预装 Python 3.10+ 和 Node.js 18+
   - `.gitattributes` 确保 bat 文件始终 CRLF，不再出现换行符问题
 ---
+
+---
+### 🕒 2026-03-12 08:30 | 🖥️ 窗口/任务: 修复 EML 提取转发邮件分类错误（dongshufeng 问题）
+- **已完成事项**：
+  - 克隆环境全新跑批时多出 `dongshufeng@jointelli.com` 目录（1份周报）
+  - 根因：`extract_attachments_from_eml_dir()` 用 `From` 头做目录分类，转发邮件的 From 是转发者
+  - 当前环境不复现是因为 attachments/ 已有正确数据，跳过了提取步骤
+  - 重写为两步走策略：
+    1. 第一遍：从非转发邮件学习「员工姓名→邮箱」映射（如 `吴开健→wukaijian@jointelli.com`）
+    2. 第二遍：用附件文件名中的员工姓名查映射表确定正确邮箱目录
+  - 验证通过：13个正确目录，dongshufeng 不再出现，37个测试全部通过
+- **涉及文件**：
+  - `pipeline/eml_extractor.py` [修改：重写 extract_attachments_from_eml_dir 两步走策略]
+- **关键决策/踩坑记录**：
+  - 转发邮件 EML 文件名通常包含「转发」关键词，可用于识别跳过（第一遍映射构建时跳过）
+  - 映射表查不到时 fallback 到 From 头（安全兜底）
+  - 利用 `pipeline.utils.extract_employee_name_from_filename` 从附件文件名提取员工中文姓名
+- **给其他 Agent 的交接/下一步**：
+  - 克隆环境重跑：删除 `attachments/` 和 `output/cleaning_report.json`，重新执行 `start.bat`
+  - 如需新增员工，确保至少有一封该员工的非转发邮件，映射才能自动建立
+---
+
+---
+### 🕒 2026-03-12 09:00 | 🖥️ 窗口/任务: 局域网访问支持
+- **已完成事项**：
+  - Flask 后端 `host` 从 `127.0.0.1` 改回 `0.0.0.0`，允许局域网内其他设备通过本机 IP 访问后端 API
+  - Vite 前端已有 `host: '0.0.0.0'` 配置，无需修改
+  - CORS 已配置 `origins: "*"`，局域网跨域无障碍
+- **涉及文件**：
+  - `web/app.py` [修改：host 127.0.0.1 → 0.0.0.0]
+- **关键决策/踩坑记录**：
+  - 之前因 WSL/Hyper-V 虚拟网卡问题将 host 改为 127.0.0.1，现在用户有局域网共享需求，改回 0.0.0.0
+  - Vite 的 `/api` 代理是服务端侧转发（Vite→Flask），代理目标保持 `127.0.0.1:5000` 不影响
+  - Windows 防火墙首次监听 0.0.0.0 时会弹出放行提示，需用户点击「允许访问」
+- **给其他 Agent 的交接/下一步**：
+  - 局域网用户访问 `http://<本机IP>:5173` 即可使用完整平台
+  - 如遇虚拟网卡绑定问题，可考虑指定具体网卡 IP 而非 0.0.0.0
+---
